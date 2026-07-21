@@ -288,30 +288,39 @@ def stock_sync():
 
     existing = {sl.article_code: sl for sl in StockLevel.query.filter_by(warehouse_code=warehouse).all()}
 
-    updated = 0
+    # Deduplicate incoming items - keep last qty for each code
+    incoming = {}
     for item in stock_items:
         code = str(item.get('code', '')).strip()
+        if not code:
+            continue
         try:
             qty = float(item.get('qty', 0))
         except (TypeError, ValueError):
             continue
-        if not code:
-            continue
+        incoming[code] = qty  # last one wins if duplicate
 
+    updated = 0
+    new_items = []
+    now = datetime.utcnow()
+
+    for code, qty in incoming.items():
         if code in existing:
             existing[code].quantity = qty
-            existing[code].updated_at = datetime.utcnow()
+            existing[code].updated_at = now
         else:
-            sl = StockLevel(
+            new_items.append(StockLevel(
                 article_code=code,
                 warehouse_code=warehouse,
                 quantity=qty
-            )
-            db.session.add(sl)
+            ))
         updated += 1
 
+    if new_items:
+        db.session.bulk_save_objects(new_items)
+
     db.session.commit()
-    return jsonify({'success': True, 'updated': updated})
+    return jsonify({'success': True, 'updated': updated, 'unique_codes': len(incoming)})
 
 
 @api.route('/stock-level', methods=['GET'])
