@@ -5,7 +5,6 @@
 {% block body %}
 <div class="app-shell">
 
-  <!-- Header -->
   <header class="app-header">
     <a href="/verify" class="header-back">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -26,7 +25,6 @@
 
   <main class="scan-main-pda">
 
-    <!-- Scanner Ready Card -->
     <div class="pda-ready-card">
       <div class="pda-laser-icon" style="background: #FFF4EC;">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
@@ -37,11 +35,9 @@
       <div class="pda-ready-text">Scanner Prêt</div>
       <div class="pda-ready-sub">Scannez l'article à vérifier</div>
 
-      <!-- Scan input -->
       <input type="text" id="manual-input" class="pda-hidden-input" placeholder="" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     </div>
 
-    <!-- State: Article Found -->
     <div class="pda-state-card pda-found hidden" id="state-found">
       <div class="pda-state-icon" style="background: #10B981;">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -53,7 +49,6 @@
       <div class="pda-state-name" id="found-name"></div>
     </div>
 
-    <!-- State: Not Found -->
     <div class="pda-state-card pda-notfound hidden" id="state-notfound">
       <div class="pda-state-icon" style="background: #EF4444;">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -64,7 +59,6 @@
       <div class="pda-state-barcode" id="notfound-barcode"></div>
     </div>
 
-    <!-- Quantity Panel -->
     <div class="qty-panel" id="qty-panel" aria-hidden="true">
       <div class="qty-article-info">
         <div class="qty-code" id="qty-code"></div>
@@ -99,7 +93,6 @@
       </div>
     </div>
 
-    <!-- Manual Search -->
     <div class="pda-manual-wrap">
       <div class="manual-input-row">
         <input type="text" id="manual-search-input" class="form-input" placeholder="Recherche manuelle..." inputmode="numeric">
@@ -117,7 +110,37 @@
 
   </main>
 
-  <!-- Finish Button -->
   <div class="finish-bar">
     <button class="btn-success btn-full" onclick="finishInventaire()">
-      <svg width="20" height="20" viewBox="0 0 24 24" 
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Terminer la Vérification
+    </button>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Accueil</span>
+    </a>
+    <a href="/verify/scan" class="nav-item active">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9V6a2 2 0 012-2h2M3 15v3a2 2 0 002 2h2M15 4h2a2 2 0 012 2v3M15 20h2a2 2 0 002-2v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="7" y1="12" x2="17" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Scanner</span>
+    </a>
+    <a href="/verify/log" class="nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Liste</span>
+    </a>
+    <a href="/admin" class="nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Admin</span>
+    </a>
+  </nav>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/scanner-inv.js"></script>
+{% endblock %}
