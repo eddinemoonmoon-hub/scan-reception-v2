@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Vérification - Scanner{% endblock %}
+{% block body_class %}app-page scan-page{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+
+  <!-- Header -->
+  <header class="app-header">
+    <a href="/verify" class="header-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M19 12H5M12 19l-7-7 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <div class="header-center">
+      <div class="app-title">Vérification</div>
+      <div id="header-ref" class="app-subtitle">Chargement...</div>
+    </div>
+    <a href="/verify/log" class="header-btn pos-rel">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span id="badge-count" class="badge hidden">0</span>
+    </a>
+  </header>
+
+  <main class="scan-main-pda">
+
+    <!-- Scanner Ready Card -->
+    <div class="pda-ready-card">
+      <div class="pda-laser-icon" style="background: #FFF4EC;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+          <path d="M3 9V6a2 2 0 012-2h2M3 15v3a2 2 0 002 2h2M15 4h2a2 2 0 012 2v3M15 20h2a2 2 0 002-2v-3" stroke="#FF6B00" stroke-width="2" stroke-linecap="round"/>
+          <line x1="7" y1="12" x2="17" y2="12" stroke="#FF6B00" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="pda-ready-text">Scanner Prêt</div>
+      <div class="pda-ready-sub">Scannez l'article à vérifier</div>
+
+      <!-- Scan input -->
+      <input type="text" id="manual-input" class="pda-hidden-input" placeholder="" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+
+    <!-- State: Article Found -->
+    <div class="pda-state-card pda-found hidden" id="state-found">
+      <div class="pda-state-icon" style="background: #10B981;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="pda-state-label">Article Trouvé</div>
+      <div class="pda-state-code" id="found-code"></div>
+      <div class="pda-state-name" id="found-name"></div>
+    </div>
+
+    <!-- State: Not Found -->
+    <div class="pda-state-card pda-notfound hidden" id="state-notfound">
+      <div class="pda-state-icon" style="background: #EF4444;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="pda-state-label">Article Non Trouvé</div>
+      <div class="pda-state-barcode" id="notfound-barcode"></div>
+    </div>
+
+    <!-- Quantity Panel -->
+    <div class="qty-panel" id="qty-panel" aria-hidden="true">
+      <div class="qty-article-info">
+        <div class="qty-code" id="qty-code"></div>
+        <div class="qty-name" id="qty-name"></div>
+        <div style="margin-top:10px;padding:12px 14px;background:#FFF4EC;border-radius:10px;border:1px solid rgba(255,107,0,0.2);">
+          <div style="font-size:12px;color:#8B8B8B;font-weight:500;">Stock système</div>
+          <div id="qty-systeme" style="font-size:24px;font-weight:700;color:#FF6B00;letter-spacing:-0.02em;">-</div>
+        </div>
+        <div id="qty-ecart-preview" class="hidden" style="margin-top:8px;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600;text-align:center;"></div>
+      </div>
+      <div class="qty-input-wrap">
+        <button class="qty-btn" onclick="changeQty(-1)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <input type="number" inputmode="numeric" pattern="[0-9]*" id="qty-input" class="qty-input" value="" min="0" step="1" placeholder="Physique" oninput="updateEcartPreview()">
+        <button class="qty-btn" onclick="changeQty(1)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="qty-actions">
+        <button class="btn-secondary" onclick="cancelScan()">Annuler</button>
+        <button id="confirm-add-btn" class="btn-primary" onclick="confirmAdd()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Confirmer
+        </button>
+      </div>
+    </div>
+
+    <!-- Manual Search -->
+    <div class="pda-manual-wrap">
+      <div class="manual-input-row">
+        <input type="text" id="manual-search-input" class="form-input" placeholder="Recherche manuelle..." inputmode="numeric">
+        <button class="btn-icon" onclick="manualSearch()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="8" stroke="#FF6B00" stroke-width="2"/>
+            <path d="M21 21l-4.35-4.35" stroke="#FF6B00" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <canvas id="scanner-canvas" class="hidden"></canvas>
+    <div id="debug-messages"></div>
+
+  </main>
+
+  <!-- Finish Button -->
+  <div class="finish-bar">
+    <button class="btn-success btn-full" onclick="finishInventaire()">
+      <svg width="20" height="20" viewBox="0 0 24 24" 
