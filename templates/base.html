@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PMD Reception">
+    <meta name="theme-color" content="#FF6B00">
+    <title>{% block title %}PMD Reception{% endblock %}</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
+    <link rel="shortcut icon" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+{% block body %}{% endblock %}
+
+<!-- Toast notification -->
+<div id="toast" class="toast hidden">
+    <div class="toast-icon-wrap" id="toast-icon-wrap"></div>
+    <span id="toast-msg"></span>
+</div>
+
+<script src="/static/js/app.js"></script>
+<button id="pwa-install-btn" class="pwa-install-btn hidden" onclick="installPWA()">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Installer l app
+</button>
+{% block scripts %}{% endblock %}
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+}
+</script>
+<div style="display:none" id="dev-signature">Developed by Mr Badr</div>
+<div style="text-align:center;padding:8px 0;font-size:11px;color:#999;font-weight:600;">Dev by Mr Badr</div>
+</body>
+</html>
+
+
+
+

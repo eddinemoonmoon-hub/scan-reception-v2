@@ -1,0 +1,298 @@
+﻿{% extends "base.html" %}
+{% block title %}Liste des articles{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+
+  <!-- Offline Banner -->
+  <div id="offline-banner" class="offline-banner hidden">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.56 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    Hors ligne — donnees locales
+  </div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <a href="/scan" class="header-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M19 12H5M12 19l-7-7 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <div class="header-center">
+      <div class="app-title">Articles scannes</div>
+      <div id="header-ref" class="app-subtitle">Chargement...</div>
+    </div>
+    <a href="/scan" class="header-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M3 9V6a2 2 0 012-2h2M3 15v3a2 2 0 002 2h2M15 4h2a2 2 0 012 2v3M15 20h2a2 2 0 002-2v-3" stroke="#2563EB" stroke-width="2" stroke-linecap="round"/>
+        <line x1="7" y1="12" x2="17" y2="12" stroke="#2563EB" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </a>
+  </header>
+
+  <main class="app-main">
+
+    <!-- Summary bar -->
+    <div class="summary-bar">
+      <div class="summary-item">
+        <div class="summary-val" id="total-articles">0</div>
+        <div class="summary-lab">Articles</div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-item">
+        <div class="summary-val" id="total-qty">0</div>
+        <div class="summary-lab">Quantite totale</div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-item">
+        <div class="summary-val" id="fournisseur-name">-</div>
+        <div class="summary-lab">Fournisseur</div>
+      </div>
+    </div>
+
+    <!-- Offline note -->
+    <div id="offline-note" class="alert-warning hidden">
+      Liste partielle — articles scannes hors ligne inclus apres sync
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="empty-state hidden">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="#3A3A5C" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <p>Aucun article scanne</p>
+      <a href="/scan" class="btn-primary">Commencer le scan</a>
+    </div>
+
+    <!-- Articles list -->
+    <div id="lignes-list" class="lignes-list"></div>
+
+    <!-- Pending offline scans -->
+    <div id="pending-section" class="hidden">
+      <div class="section-title" style="margin-top:16px;">En attente de sync</div>
+      <div id="pending-list" class="lignes-list"></div>
+    </div>
+
+    <!-- Finish button -->
+    <div id="finish-section" class="finish-section hidden">
+      <button class="btn-success btn-full" onclick="finishReception()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Terminer et sauvegarder
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Accueil</span>
+    </a>
+    <a href="/scan" class="nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M3 9V6a2 2 0 012-2h2M3 15v3a2 2 0 002 2h2M15 4h2a2 2 0 012 2v3M15 20h2a2 2 0 002-2v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="7" y1="12" x2="17" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Scanner</span>
+    </a>
+    <a href="/log" class="nav-item active">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Liste</span>
+    </a>
+    <a href="/admin" class="nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Admin</span>
+    </a>
+  </nav>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/queue.js"></script>
+<script>
+// Show offline banner if needed
+if (!navigator.onLine) {
+  document.getElementById('offline-banner').classList.remove('hidden');
+}
+window.addEventListener('online', function() {
+  document.getElementById('offline-banner').classList.add('hidden');
+  loadLog();
+});
+window.addEventListener('offline', function() {
+  document.getElementById('offline-banner').classList.remove('hidden');
+});
+
+function loadLog() {
+  if (!navigator.onLine) {
+    loadLogOffline();
+    return;
+  }
+
+  fetch('/api/current-reception')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.active) {
+        // Check localStorage before redirecting
+        var ref = localStorage.getItem('pmd_reception_ref');
+        if (ref) {
+          loadLogOffline();
+          return;
+        }
+        window.location.href = '/';
+        return;
+      }
+      renderLog(data.reference, data.fournisseur, data.lignes);
+      loadPendingScans();
+    })
+    .catch(function() {
+      loadLogOffline();
+    });
+}
+
+function loadLogOffline() {
+  // Show reference from localStorage
+  var ref = localStorage.getItem('pmd_reception_ref');
+  document.getElementById('header-ref').textContent = ref || 'Hors ligne';
+  document.getElementById('fournisseur-name').textContent = '-';
+  document.getElementById('offline-note').classList.remove('hidden');
+
+  // Show empty state - synced lignes not available offline
+  document.getElementById('total-articles').textContent = '?';
+  document.getElementById('total-qty').textContent = '?';
+  document.getElementById('lignes-list').innerHTML = '';
+
+  // Show finish button always offline
+  document.getElementById('finish-section').classList.remove('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+
+  // Show pending scans from queue
+  loadPendingScans();
+}
+
+function loadPendingScans() {
+  getPendingScans().then(function(items) {
+    var scans = items.filter(function(i) { return i.type === 'scan'; });
+    if (scans.length === 0) return;
+
+    var pendingSection = document.getElementById('pending-section');
+    var pendingList = document.getElementById('pending-list');
+    pendingSection.classList.remove('hidden');
+
+    pendingList.innerHTML = scans.map(function(s) {
+      return '<div class="ligne-card">' +
+        '<div class="ligne-info">' +
+          '<div class="ligne-code">' + s.article_code + '</div>' +
+          '<div class="ligne-name">' + s.article_designation + '</div>' +
+          '<div class="ligne-unite">' + s.article_unite + '</div>' +
+        '</div>' +
+        '<div class="ligne-right">' +
+          '<div class="ligne-qty" style="color:var(--orange)">' + s.qte + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  });
+}
+
+function renderLog(reference, fournisseur, lignes) {
+  document.getElementById('header-ref').textContent = reference;
+  document.getElementById('fournisseur-name').textContent = fournisseur || 'Aucun';
+  document.getElementById('total-articles').textContent = lignes.length;
+
+  var totalQty = 0;
+  lignes.forEach(function(l) { totalQty += l.qte_recue; });
+  document.getElementById('total-qty').textContent = totalQty % 1 === 0 ? totalQty : totalQty.toFixed(2);
+
+  var list = document.getElementById('lignes-list');
+  var empty = document.getElementById('empty-state');
+  var finish = document.getElementById('finish-section');
+
+  if (lignes.length === 0) {
+    empty.classList.remove('hidden');
+    finish.classList.add('hidden');
+    list.innerHTML = '';
+  } else {
+    empty.classList.add('hidden');
+    finish.classList.remove('hidden');
+    list.innerHTML = lignes.map(function(l) {
+      return '<div class="ligne-card" id="ligne-' + l.id + '">' +
+        '<div class="ligne-info">' +
+          '<div class="ligne-code">' + l.code_article + '</div>' +
+          '<div class="ligne-name">' + l.designation + '</div>' +
+          '<div class="ligne-unite">' + l.unite + '</div>' +
+        '</div>' +
+        '<div class="ligne-right">' +
+          '<div class="ligne-qty">' + (l.qte_recue % 1 === 0 ? l.qte_recue : l.qte_recue.toFixed(2)) + '</div>' +
+          '<button class="btn-remove" onclick="removeLigne(' + l.id + ')">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none">' +
+              '<path d="M18 6L6 18M6 6l12 12" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>' +
+            '</svg>' +
+          '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+function removeLigne(id) {
+  if (!navigator.onLine) {
+    showToast('Hors ligne - impossible de supprimer', 'error');
+    return;
+  }
+  fetch('/api/remove-ligne/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        loadLog();
+        showToast('Article retire', 'info');
+      }
+    });
+}
+
+function finishReception() {
+  if (!navigator.onLine) {
+    queueFinish()
+      .then(function() {
+        showToast('Reception sauvegardee - sync quand connexion retablie', 'warning');
+        setTimeout(function() { window.location.href = '/'; }, 1500);
+      })
+      .catch(function() {
+        showToast('Erreur sauvegarde locale', 'error');
+      });
+    return;
+  }
+  fetch('/api/finish-reception', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        localStorage.removeItem('pmd_reception_ref');
+        localStorage.removeItem('pmd_reception_id');
+        showToast('Reception ' + data.reference + ' sauvegardee', 'success');
+        setTimeout(function() { window.location.href = '/'; }, 1200);
+      }
+    })
+    .catch(function() {
+      queueFinish()
+        .then(function() {
+          showToast('Reception sauvegardee - sync quand connexion retablie', 'warning');
+          setTimeout(function() { window.location.href = '/'; }, 1500);
+        });
+    });
+}
+
+loadLog();
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0A0A0F">
+    <title>Admin - PMD Reception</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="app-page">
+<div class="login-shell">
+    <div class="login-logo">
+        <img src="/static/icons/icon-192.png" width="64" height="64" style="border-radius:16px;object-fit:cover;" alt="Logo">
+        <div class="login-brand">PMD Reception</div>
+        <div class="login-brand-sub">Administration</div>
+    </div>
+    <div class="login-card">
+        {% if error %}
+        <div class="alert-error">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="#EF4444" stroke-width="2"/>
+                <path d="M12 8v4M12 16h.01" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            {{ error }}
+        </div>
+        {% endif %}
+        <form method="POST" action="/admin/login">
+            <div class="form-group">
+                <label class="form-label">Mot de passe administrateur</label>
+                <input type="password" name="password" class="form-input" placeholder="Entrez le mot de passe..." autofocus autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-primary btn-full">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="11" width="18" height="11" rx="2" stroke="white" stroke-width="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Acceder
+            </button>
+        </form>
+    </div>
+    <a href="/" class="login-back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M19 12H5M12 19l-7-7 7-7" stroke="#8B8FA8" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Retour a l application
+    </a>
+</div>
+</body>
+</html>
+

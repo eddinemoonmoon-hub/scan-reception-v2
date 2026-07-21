@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Nettoyage articles duplicates{% endblock %}
+{% block body_class %}app-page admin-page{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+
+  <header class="app-header">
+    <a href="/admin/articles" class="header-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M19 12H5M12 19l-7-7 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <div class="header-center">
+      <div class="app-title">Nettoyage duplicates</div>
+      <div class="app-subtitle">{{ total }} articles trouves</div>
+    </div>
+    <div class="w-10"></div>
+  </header>
+
+  <main class="app-main">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+    <div class="alert-{{ cat }}">{{ msg }}</div>
+    {% endfor %}{% endif %}{% endwith %}
+
+    {% if total == 0 %}
+    <div class="empty-state">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+        <path d="M20 6L9 17l-5-5" stroke="#58CC02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p style="color:var(--green);font-weight:800;">Aucun duplicate trouve</p>
+      <p style="color:var(--text3);">Votre catalogue est propre</p>
+    </div>
+    {% else %}
+
+    <div class="alert-warning" style="margin-bottom:16px;">
+      <strong>{{ total }} articles</strong> avec suffixe (-2, -3, ...) trouves.
+      Le nettoyage va deplacer leurs codes-barres vers l article de base et supprimer les duplicates.
+    </div>
+
+    <div class="card" style="background:var(--blue-light);border-color:var(--blue);margin-bottom:16px;">
+      <div class="card-header">
+        <span style="color:var(--blue);">Ce qui va se passer :</span>
+      </div>
+      <ul style="padding-left:20px;color:var(--text2);font-size:14px;line-height:1.8;">
+        <li>Codes-barres deplaces vers l article de base</li>
+        <li>Articles duplicates sans reception : <strong>supprimes</strong></li>
+        <li>Articles duplicates avec receptions : <strong>desactives</strong> (gardes pour l historique)</li>
+        <li>Si l article de base n existe pas : <strong>ignore</strong></li>
+      </ul>
+    </div>
+
+    <div class="items-list">
+      {% for item in items %}
+      <div class="item-card">
+        <div class="item-main">
+          <div class="item-code">{{ item.duplicate.code_article }}</div>
+          <div class="item-name">{{ item.duplicate.designation }}</div>
+          <div class="item-meta">
+            {% if item.duplicate.barcode %}
+            <span class="meta-tag barcode-tag">{{ item.duplicate.barcode }}</span>
+            {% endif %}
+            <span class="meta-tag" style="color:var(--blue);background:var(--blue-light);">
+              → {{ item.base_code }}
+            </span>
+            {% if not item.base_exists %}
+            <span class="meta-tag" style="color:var(--red);background:var(--red-light);">
+              Base introuvable
+            </span>
+            {% elif item.has_receptions %}
+            <span class="meta-tag" style="color:var(--orange);background:var(--orange-light);">
+              {{ item.reception_count }} reception(s) - sera desactive
+            </span>
+            {% else %}
+            <span class="meta-tag" style="color:var(--green);background:var(--green-light);">
+              Sera supprime
+            </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div style="margin-top:20px;">
+      <form method="POST" action="/admin/articles/cleanup/execute" onsubmit="return confirm('Confirmer le nettoyage de {{ total }} articles ? Cette action ne peut pas etre annulee.');">
+        <button type="submit" class="btn-danger btn-full">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Lancer le nettoyage ({{ total }} articles)
+        </button>
+      </form>
+    </div>
+
+    {% endif %}
+
+  </main>
+
+</div>
+{% endblock %}

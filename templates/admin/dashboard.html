@@ -1,0 +1,211 @@
+﻿{% extends "base.html" %}
+{% block title %}Dashboard Admin{% endblock %}
+{% block body_class %}app-page admin-page{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+
+  <header class="app-header">
+    <div class="header-left">
+      <div class="app-logo">
+        <img src="/static/icons/icon-192.png" width="36" height="36" style="border-radius:10px;object-fit:cover;" alt="Logo">
+      </div>
+      <div>
+        <div class="app-title">Administration</div>
+        <div class="app-subtitle">PMD Reception</div>
+      </div>
+    </div>
+    <a href="/admin/logout" class="header-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </header>
+
+  <main class="app-main">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+      <div class="alert-{{ cat }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 3H8L6 7h12l-2-4z" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="stat-val">{{ total_articles }}</div>
+        <div class="stat-lab">Articles</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="stat-val">{{ total_fournisseurs }}</div>
+        <div class="stat-lab">Fournisseurs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="stat-val">{{ total_receptions }}</div>
+        <div class="stat-lab">Receptions</div>
+      </div>
+    </div>
+
+    <!-- LOCAL SYNC CARD -->
+    <div class="card" id="sync-card" style="margin-bottom:14px;">
+      <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M21 2v6h-6M3 12a9 9 0 0115.36-6.36L21 8M3 22v-6h6M21 12a9 9 0 01-15.36 6.36L3 16" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Cache local PDA</span>
+      </div>
+      <p class="card-text" id="sync-status">Verification du cache...</p>
+      <button id="sync-btn" class="btn-primary btn-full" onclick="syncNow()">
+        <svg id="sync-icon-normal" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M21 2v6h-6M3 12a9 9 0 0115.36-6.36L21 8M3 22v-6h6M21 12a9 9 0 01-15.36 6.36L3 16" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="sync-btn-text">Synchroniser les articles</span>
+      </button>
+    </div>
+
+    <div class="section-title">Actions rapides</div>
+    <div class="quick-actions">
+      <a href="/admin/articles" class="action-card">
+        <div class="action-icon blue"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 3H8L6 7h12l-2-4z" stroke="white" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div class="action-label">Articles</div>
+        <div class="action-sub">Gerer le catalogue</div>
+        <svg class="action-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#8B8FA8" stroke-width="2" stroke-linecap="round"/></svg>
+      </a>
+      <a href="/admin/articles/import" class="action-card">
+        <div class="action-icon green"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="action-label">Importer</div>
+        <div class="action-sub">CSV ou Excel</div>
+        <svg class="action-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#8B8FA8" stroke-width="2" stroke-linecap="round"/></svg>
+      </a>
+      <a href="/admin/fournisseurs" class="action-card">
+        <div class="action-icon orange"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="white" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div class="action-label">Fournisseurs</div>
+        <div class="action-sub">Gerer les contacts</div>
+        <svg class="action-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#8B8FA8" stroke-width="2" stroke-linecap="round"/></svg>
+      </a>
+      <a href="/admin/receptions" class="action-card">
+        <div class="action-icon purple"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="white" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div class="action-label">Receptions</div>
+        <div class="action-sub">Historique complet</div>
+        <svg class="action-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#8B8FA8" stroke-width="2" stroke-linecap="round"/></svg>
+      </a>
+      <a href="/admin/export" class="action-card">
+        <div class="action-icon teal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="action-label">Exporter CSV</div>
+        <div class="action-sub">Telecharger les donnees</div>
+        <svg class="action-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#8B8FA8" stroke-width="2" stroke-linecap="round"/></svg>
+      </a>
+    </div>
+
+    {% if recent_receptions %}
+    <div class="section-title">Receptions recentes</div>
+    <div class="recent-list">
+      {% for rec in recent_receptions %}
+      <a href="/admin/receptions/{{ rec.id }}" class="recent-card">
+        <div class="recent-left">
+          <div class="recent-ref">{{ rec.reference }}</div>
+          <div class="recent-meta">
+            {{ rec.date_reception.strftime('%d/%m/%Y') }}
+            {% if rec.fournisseur %} — {{ rec.fournisseur.nom }}{% endif %}
+          </div>
+        </div>
+        <div class="recent-right">
+          <span class="badge-status {{ rec.statut }}">
+            {{ 'Terminee' if rec.statut == 'terminee' else 'En cours' }}
+          </span>
+          <div class="recent-count">{{ rec.total_lignes }} art.</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Accueil</span></a>
+    <a href="/admin/articles" class="nav-item"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 3H8L6 7h12l-2-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Articles</span></a>
+    <a href="/admin/receptions" class="nav-item"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Receptions</span></a>
+    <a href="/admin" class="nav-item active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Admin</span></a>
+  </nav>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/queue.js"></script>
+<script>
+// Check current cache count on page load
+window.addEventListener('DOMContentLoaded', function() {
+  checkCacheStatus();
+});
+
+function checkCacheStatus() {
+  getArticleCacheCount().then(function(count) {
+    var status = document.getElementById('sync-status');
+    var btnText = document.getElementById('sync-btn-text');
+    if (count > 0) {
+      status.innerHTML = '<span style="color:var(--green);font-weight:800;">✓ ' + count + ' articles en cache</span> — Pret pour le mode hors ligne';
+      btnText.textContent = 'Resynchroniser les articles (' + count + ' en cache)';
+    } else {
+      status.innerHTML = '<span style="color:var(--orange);font-weight:800;">⚠ Aucun article en cache</span> — Le mode hors ligne ne fonctionnera pas';
+      btnText.textContent = 'Synchroniser les articles (0 en cache)';
+    }
+  }).catch(function() {
+    document.getElementById('sync-status').textContent = 'Impossible de verifier le cache';
+  });
+}
+
+function syncNow() {
+  var btn = document.getElementById('sync-btn');
+  var btnText = document.getElementById('sync-btn-text');
+  var status = document.getElementById('sync-status');
+
+  btn.disabled = true;
+  btnText.textContent = 'Synchronisation en cours...';
+  status.innerHTML = '<span style="color:var(--blue);font-weight:700;">Telechargement des articles depuis le serveur...</span>';
+
+  fetch('/api/articles')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        throw new Error('Erreur serveur');
+      }
+      btnText.textContent = 'Sauvegarde locale de ' + data.count + ' articles...';
+      return storeArticles(data.articles).then(function() {
+        return setMetaValue('last_article_sync', Date.now());
+      }).then(function() {
+        return data.count;
+      });
+    })
+    .then(function(count) {
+      status.innerHTML = '<span style="color:var(--green);font-weight:800;">✓ ' + count + ' articles synchronises avec succes</span> — Pret pour le mode hors ligne';
+      btnText.textContent = 'Resynchroniser les articles (' + count + ' en cache)';
+      btn.disabled = false;
+      showToast(count + ' articles synchronises', 'success');
+    })
+    .catch(function(err) {
+      status.innerHTML = '<span style="color:var(--red);font-weight:800;">✗ Erreur de synchronisation</span> — Verifiez votre connexion';
+      btnText.textContent = 'Reessayer la synchronisation';
+      btn.disabled = false;
+      showToast('Erreur de synchronisation', 'error');
+    });
+}
+</script>
+{% endblock %}
