@@ -14,11 +14,13 @@ def create_app():
     from routes.scan import scan
     from routes.admin import admin
     from routes.api import api
+    from routes.verify import verify
 
     app.register_blueprint(main)
     app.register_blueprint(scan)
     app.register_blueprint(admin)
     app.register_blueprint(api)
+    app.register_blueprint(verify)
 
     @app.route('/manifest.json')
     def manifest():
@@ -53,6 +55,8 @@ def create_app():
         from models.fournisseur import Fournisseur
         from models.reception import Reception, ReceptionLigne
         from models.user import User
+        from models.stock_level import StockLevel
+        from models.inventaire import Inventaire, InventaireLigne
         db.create_all()
         seed_admin()
 

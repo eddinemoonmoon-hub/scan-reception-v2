@@ -265,3 +265,222 @@ def remove_ligne(ligne_id):
     db.session.commit()
 
     return jsonify({'success': True})
+
+# ─── STOCK LEVELS (from local TCPOS bridge) ─────────────
+
+@api.route('/stock-sync', methods=['POST'])
+def stock_sync():
+    """Receive bulk stock data from local bridge script"""
+    import os
+    from models.stock_level import StockLevel
+
+    sync_key = request.headers.get('X-Sync-Key', '')
+    expected_key = os.environ.get('SYNC_API_KEY', 'pmd-sync-2026-v2-staging')
+    if sync_key != expected_key:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    warehouse = data.get('warehouse', '20')
+    stock_items = data.get('stock', [])
+
+    if not stock_items:
+        return jsonify({'success': False, 'message': 'No stock data'})
+
+    existing = {sl.article_code: sl for sl in StockLevel.query.filter_by(warehouse_code=warehouse).all()}
+
+    updated = 0
+    for item in stock_items:
+        code = str(item.get('code', '')).strip()
+        try:
+            qty = float(item.get('qty', 0))
+        except (TypeError, ValueError):
+            continue
+        if not code:
+            continue
+
+        if code in existing:
+            existing[code].quantity = qty
+            existing[code].updated_at = datetime.utcnow()
+        else:
+            sl = StockLevel(
+                article_code=code,
+                warehouse_code=warehouse,
+                quantity=qty
+            )
+            db.session.add(sl)
+        updated += 1
+
+    db.session.commit()
+    return jsonify({'success': True, 'updated': updated})
+
+
+@api.route('/stock-level', methods=['GET'])
+def stock_level():
+    """Get stock level for an article from local cache"""
+    from models.stock_level import StockLevel
+
+    article_code = request.args.get('article_code', '').strip()
+    warehouse = request.args.get('warehouse', '20')
+
+    if not article_code:
+        return jsonify({'found': False})
+
+    sl = StockLevel.query.filter_by(
+        article_code=article_code,
+        warehouse_code=warehouse
+    ).first()
+
+    if sl:
+        return jsonify({
+            'found': True,
+            'quantity': sl.quantity,
+            'updated_at': sl.updated_at.strftime('%d/%m/%Y %H:%M') if sl.updated_at else None
+        })
+
+    return jsonify({'found': False, 'quantity': 0})
+
+
+# ─── INVENTAIRE / VERIFY ────────────────────────────────
+
+@api.route('/start-inventaire', methods=['POST'])
+def start_inventaire():
+    """Start a new inventaire session"""
+    from models.inventaire import Inventaire
+
+    data = request.get_json()
+    agent_name = (data.get('agent_name', '') or '').strip()
+    notes = data.get('notes', '')
+
+    reference = Inventaire.generate_reference()
+
+    inv = Inventaire(
+        reference=reference,
+        warehouse_code='20',
+        agent_name=agent_name if agent_name else None,
+        notes=notes,
+        date_inventaire=datetime.utcnow().date(),
+        statut='en_cours'
+    )
+    db.session.add(inv)
+    db.session.commit()
+
+    session['inventaire_id'] = inv.id
+    session['inventaire_ref'] = reference
+
+    return jsonify({
+        'success': True,
+        'inventaire_id': inv.id,
+        'reference': reference
+    })
+
+
+@api.route('/current-inventaire')
+def current_inventaire():
+    """Get current inventaire session"""
+    from models.inventaire import Inventaire
+
+    inv_id = session.get('inventaire_id')
+    if not inv_id:
+        return jsonify({'active': False})
+
+    inv = db.session.get(Inventaire, inv_id)
+    if not inv:
+        session.pop('inventaire_id', None)
+        return jsonify({'active': False})
+
+    lignes = []
+    for l in inv.lignes:
+        lignes.append({
+            'id': l.id,
+            'code_article': l.article.code_article,
+            'designation': l.article.designation,
+            'qte_systeme': l.qte_systeme,
+            'qte_physique': l.qte_physique,
+            'ecart': l.ecart,
+            'scanned_at': l.scanned_at.strftime('%H:%M') if l.scanned_at else None
+        })
+
+    return jsonify({
+        'active': True,
+        'inventaire_id': inv.id,
+        'reference': inv.reference,
+        'agent_name': inv.agent_name,
+        'total_lignes': len(lignes),
+        'total_ecarts': inv.total_ecarts,
+        'lignes': lignes
+    })
+
+
+@api.route('/add-inventaire-ligne', methods=['POST'])
+def add_inventaire_ligne():
+    """Add a comparison line to current inventaire (allow multiple counts)"""
+    from models.inventaire import Inventaire, InventaireLigne
+    from models.stock_level import StockLevel
+
+    data = request.get_json()
+    article_id = data.get('article_id')
+    try:
+        qte_physique = float(data.get('qte_physique', 0))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Quantite invalide'})
+
+    inv_id = session.get('inventaire_id')
+
+    if not inv_id:
+        return jsonify({'success': False, 'message': 'Aucun inventaire actif'})
+
+    inv = db.session.get(Inventaire, inv_id)
+    if not inv:
+        return jsonify({'success': False, 'message': 'Inventaire introuvable'})
+
+    article = db.session.get(Article, article_id)
+    if not article:
+        return jsonify({'success': False, 'message': 'Article introuvable'})
+
+    sl = StockLevel.query.filter_by(
+        article_code=article.code_article,
+        warehouse_code='20'
+    ).first()
+    qte_systeme = sl.quantity if sl else 0
+    ecart = qte_physique - qte_systeme
+
+    ligne = InventaireLigne(
+        inventaire_id=inv_id,
+        article_id=article_id,
+        qte_systeme=qte_systeme,
+        qte_physique=qte_physique,
+        ecart=ecart
+    )
+    db.session.add(ligne)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'total_lignes': inv.total_lignes,
+        'total_ecarts': inv.total_ecarts,
+        'qte_systeme': qte_systeme,
+        'ecart': ecart
+    })
+
+
+@api.route('/finish-inventaire', methods=['POST'])
+def finish_inventaire():
+    """Finish current inventaire session"""
+    from models.inventaire import Inventaire
+
+    inv_id = session.get('inventaire_id')
+    if not inv_id:
+        return jsonify({'success': False, 'message': 'Aucun inventaire actif'})
+
+    inv = db.session.get(Inventaire, inv_id)
+    if inv:
+        inv.statut = 'terminee'
+        db.session.commit()
+
+    session.pop('inventaire_id', None)
+    session.pop('inventaire_ref', None)
+
+    return jsonify({
+        'success': True,
+        'reference': inv.reference if inv else ''
+    })
