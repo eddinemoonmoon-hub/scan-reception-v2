@@ -8,6 +8,7 @@ class StockLevel(db.Model):
     article_code   = db.Column(db.String(50), nullable=False, index=True)
     warehouse_code = db.Column(db.String(10), nullable=False, default='20')
     quantity       = db.Column(db.Float, nullable=False, default=0)
+    price          = db.Column(db.Float, nullable=True, default=None)
     updated_at     = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (

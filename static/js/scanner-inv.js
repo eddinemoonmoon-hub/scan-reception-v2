@@ -117,23 +117,36 @@ function showNotFound(barcode) {
 }
 
 function fetchStockAndShowPanel(article) {
-  // Fetch fresh stock from server
   fetch("/api/stock-level?article_code=" + encodeURIComponent(article.code_article))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       currentQteSysteme = data.quantity || 0;
-      showQtyPanel(article, currentQteSysteme);
+      showQtyPanel(article, currentQteSysteme, data.price);
     })
     .catch(function() {
       currentQteSysteme = 0;
-      showQtyPanel(article, 0);
+      showQtyPanel(article, 0, null);
     });
 }
 
-function showQtyPanel(article, qteSysteme) {
+function showQtyPanel(article, qteSysteme, prix) {
   document.getElementById("qty-code").textContent = article.code_article;
   document.getElementById("qty-name").textContent = article.designation;
   document.getElementById("qty-systeme").textContent = qteSysteme + " " + (article.unite || "");
+
+  var prixEl = document.getElementById("qty-prix");
+  if (prixEl) {
+    if (prix !== null && prix !== undefined) {
+      prixEl.textContent = parseFloat(prix).toFixed(2) + " MAD";
+      prixEl.style.color = "#10B981";
+      prixEl.style.fontSize = "22px";
+    } else {
+      prixEl.textContent = "Prix non mentionné";
+      prixEl.style.color = "#8B8B8B";
+      prixEl.style.fontSize = "13px";
+    }
+  }
+
   document.getElementById("qty-input").value = "";
   document.getElementById("qty-ecart-preview").classList.add("hidden");
 

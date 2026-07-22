@@ -298,21 +298,33 @@ def stock_sync():
             qty = float(item.get('qty', 0))
         except (TypeError, ValueError):
             continue
-        incoming[code] = qty  # last one wins if duplicate
+
+        price = item.get('price')
+        try:
+            price = float(price) if price is not None else None
+        except (TypeError, ValueError):
+            price = None
+
+        incoming[code] = {'qty': qty, 'price': price}
 
     updated = 0
     new_items = []
     now = datetime.utcnow()
 
-    for code, qty in incoming.items():
+    for code, item_data in incoming.items():
+        qty = item_data['qty']
+        price = item_data['price']
         if code in existing:
             existing[code].quantity = qty
+            if price is not None:
+                existing[code].price = price
             existing[code].updated_at = now
         else:
             new_items.append(StockLevel(
                 article_code=code,
                 warehouse_code=warehouse,
-                quantity=qty
+                quantity=qty,
+                price=price
             ))
         updated += 1
 
@@ -343,10 +355,11 @@ def stock_level():
         return jsonify({
             'found': True,
             'quantity': sl.quantity,
+            'price': sl.price,
             'updated_at': sl.updated_at.strftime('%d/%m/%Y %H:%M') if sl.updated_at else None
         })
 
-    return jsonify({'found': False, 'quantity': 0})
+    return jsonify({'found': False, 'quantity': 0, 'price': None})
 
 
 # ─── INVENTAIRE / VERIFY ────────────────────────────────
