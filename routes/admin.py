@@ -817,24 +817,17 @@ def inventaire_export(id):
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';', lineterminator='\n')
-    writer.writerow(['code_article', 'designation', 'qte_systeme', 'qte_physique', 'ecart', 'agent', 'date'])
 
     for ligne in inventaire.lignes:
-        if ligne.article:
-            writer.writerow([
-                ligne.article.code_article,
-                ligne.article.designation,
-                ligne.qte_systeme,
-                ligne.qte_physique,
-                ligne.ecart,
-                inventaire.agent_name or '',
-                inventaire.date_inventaire.strftime('%d/%m/%Y') if inventaire.date_inventaire else ''
-            ])
+        barcode = (ligne.article.barcode or '').strip() if ligne.article else ''
+        qte = ligne.qte_physique
+        if barcode:
+            writer.writerow([barcode, qte])
 
-    csv_bytes = output.getvalue().encode('utf-8-sig')
+    csv_bytes = output.getvalue().encode('cp1252', errors='replace')
     response = make_response(csv_bytes)
-    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-    response.headers['Content-Disposition'] = f'attachment; filename={inventaire.reference}.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = 'attachment; filename=' + inventaire.reference + '.csv'
     return response
 
 
@@ -863,27 +856,19 @@ def inventaires_export_all():
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';', lineterminator='\n')
-    writer.writerow(['reference', 'agent', 'date', 'code_article', 'designation', 'qte_systeme', 'qte_physique', 'ecart'])
 
     for inv in inventaires_list:
         for ligne in inv.lignes:
-            if ligne.article:
-                writer.writerow([
-                    inv.reference,
-                    inv.agent_name or '',
-                    inv.date_inventaire.strftime('%d/%m/%Y') if inv.date_inventaire else '',
-                    ligne.article.code_article,
-                    ligne.article.designation,
-                    ligne.qte_systeme,
-                    ligne.qte_physique,
-                    ligne.ecart
-                ])
+            barcode = (ligne.article.barcode or '').strip() if ligne.article else ''
+            qte = ligne.qte_physique
+            if barcode:
+                writer.writerow([barcode, qte])
 
     today = date.today().strftime('%Y%m%d')
-    csv_bytes = output.getvalue().encode('utf-8-sig')
+    csv_bytes = output.getvalue().encode('cp1252', errors='replace')
     response = make_response(csv_bytes)
-    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-    response.headers['Content-Disposition'] = f'attachment; filename=inventaires_export_{today}.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = 'attachment; filename=inventaires_export_' + today + '.csv'
     return response
 
 # --- EXPORT CSV ------------------------------------------
