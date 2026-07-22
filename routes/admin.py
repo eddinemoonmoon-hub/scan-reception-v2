@@ -753,6 +753,138 @@ def reception_delete(id):
         flash('Reception supprimee', 'success')
     return redirect(url_for('admin.receptions'))
 
+# --- INVENTAIRES -----------------------------------------
+
+@admin.route('/inventaires')
+@admin_required
+def inventaires():
+    from models.inventaire import Inventaire
+    date_from = request.args.get('date_from', '')
+    date_to   = request.args.get('date_to', '')
+    query = Inventaire.query
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(Inventaire.date_inventaire >= df)
+        except:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(Inventaire.date_inventaire <= dt)
+        except:
+            pass
+
+    inventaires_list = query.order_by(Inventaire.created_at.desc()).all()
+    return render_template('admin/inventaires/list.html',
+                           inventaires=inventaires_list,
+                           date_from=date_from,
+                           date_to=date_to)
+
+
+@admin.route('/inventaires/<int:id>')
+@admin_required
+def inventaire_detail(id):
+    from models.inventaire import Inventaire
+    inventaire = db.session.get(Inventaire, id)
+    if not inventaire:
+        flash('Inventaire introuvable', 'error')
+        return redirect(url_for('admin.inventaires'))
+    return render_template('admin/inventaires/detail.html', inventaire=inventaire)
+
+
+@admin.route('/inventaires/<int:id>/delete', methods=['POST'])
+@admin_required
+def inventaire_delete(id):
+    from models.inventaire import Inventaire
+    inventaire = db.session.get(Inventaire, id)
+    if inventaire:
+        db.session.delete(inventaire)
+        db.session.commit()
+        flash('Inventaire supprime', 'success')
+    return redirect(url_for('admin.inventaires'))
+
+
+@admin.route('/inventaires/<int:id>/export')
+@admin_required
+def inventaire_export(id):
+    from models.inventaire import Inventaire
+    inventaire = db.session.get(Inventaire, id)
+    if not inventaire:
+        flash('Inventaire introuvable', 'error')
+        return redirect(url_for('admin.inventaires'))
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', lineterminator='\n')
+    writer.writerow(['code_article', 'designation', 'qte_systeme', 'qte_physique', 'ecart', 'agent', 'date'])
+
+    for ligne in inventaire.lignes:
+        if ligne.article:
+            writer.writerow([
+                ligne.article.code_article,
+                ligne.article.designation,
+                ligne.qte_systeme,
+                ligne.qte_physique,
+                ligne.ecart,
+                inventaire.agent_name or '',
+                inventaire.date_inventaire.strftime('%d/%m/%Y') if inventaire.date_inventaire else ''
+            ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    response = make_response(csv_bytes)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename={inventaire.reference}.csv'
+    return response
+
+
+@admin.route('/inventaires/export')
+@admin_required
+def inventaires_export_all():
+    from models.inventaire import Inventaire
+    date_from = request.args.get('date_from', '')
+    date_to   = request.args.get('date_to', '')
+    query = Inventaire.query
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(Inventaire.date_inventaire >= df)
+        except:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(Inventaire.date_inventaire <= dt)
+        except:
+            pass
+
+    inventaires_list = query.order_by(Inventaire.date_inventaire.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', lineterminator='\n')
+    writer.writerow(['reference', 'agent', 'date', 'code_article', 'designation', 'qte_systeme', 'qte_physique', 'ecart'])
+
+    for inv in inventaires_list:
+        for ligne in inv.lignes:
+            if ligne.article:
+                writer.writerow([
+                    inv.reference,
+                    inv.agent_name or '',
+                    inv.date_inventaire.strftime('%d/%m/%Y') if inv.date_inventaire else '',
+                    ligne.article.code_article,
+                    ligne.article.designation,
+                    ligne.qte_systeme,
+                    ligne.qte_physique,
+                    ligne.ecart
+                ])
+
+    today = date.today().strftime('%Y%m%d')
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    response = make_response(csv_bytes)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename=inventaires_export_{today}.csv'
+    return response
 
 # --- EXPORT CSV ------------------------------------------
 
