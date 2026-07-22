@@ -493,3 +493,156 @@ def finish_inventaire():
         'success': True,
         'reference': inv.reference if inv else ''
     })
+
+
+# ─── ARTICLES SYNC FROM TCPOS ───────────────────────────
+
+@api.route('/articles-sync', methods=['POST'])
+def articles_sync():
+    """Receive bulk articles from local bridge script (TCPOS sync)"""
+    import os
+    from models.article_barcode import ArticleBarcode
+
+    # Auth check
+    sync_key = request.headers.get('X-Sync-Key', '')
+    expected_key = os.environ.get('SYNC_API_KEY', 'pmd-sync-2026-v2-staging')
+    if sync_key != expected_key:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    articles_data = data.get('articles', [])
+
+    if not articles_data:
+        return jsonify({'success': False, 'message': 'No articles data'})
+
+    # Pre-load ALL existing articles and barcodes into memory (fast lookups)
+    existing_codes = {a.code_article: a for a in Article.query.all()}
+    existing_primary_barcodes = {a.barcode for a in Article.query.filter(Article.barcode != None).all()}
+    existing_extra_barcodes = {b.barcode for b in ArticleBarcode.query.all()}
+
+    created = 0
+    updated = 0
+    new_barcodes = 0
+    errors = []
+
+    new_articles_batch = []           # New articles to insert
+    new_extras_for_existing = []      # New extra barcodes for existing articles
+    pending_extras_for_new = []       # (code, barcode) to add after new articles saved
+
+    for item in articles_data:
+        code = str(item.get('code', '') or '').strip()
+        desig = str(item.get('designation', '') or '').strip()
+        barcodes_list = item.get('barcodes', [])
+
+        if not code or not desig:
+            continue
+
+        if code in existing_codes:
+            # Article exists - update designation if changed
+            art = existing_codes[code]
+
+            # Handle in-memory new articles (not yet in DB)
+            if art.id is None:
+                for bc in barcodes_list:
+                    bc = str(bc).strip()
+                    if not bc:
+                        continue
+                    if bc in existing_primary_barcodes or bc in existing_extra_barcodes:
+                        continue
+                    pending_extras_for_new.append((code, bc))
+                    existing_extra_barcodes.add(bc)
+                    new_barcodes += 1
+            else:
+                # Real existing article in DB
+                if art.designation != desig:
+                    art.designation = desig
+
+                # Get current barcodes for this article
+                art_current_barcodes = set()
+                if art.barcode:
+                    art_current_barcodes.add(art.barcode)
+                for eb in art.barcodes:
+                    art_current_barcodes.add(eb.barcode)
+
+                # Add missing barcodes
+                for bc in barcodes_list:
+                    bc = str(bc).strip()
+                    if not bc:
+                        continue
+                    if bc in art_current_barcodes:
+                        continue
+                    if bc in existing_primary_barcodes or bc in existing_extra_barcodes:
+                        # Barcode used by another article - skip
+                        continue
+
+                    new_extras_for_existing.append(
+                        ArticleBarcode(article_id=art.id, barcode=bc)
+                    )
+                    existing_extra_barcodes.add(bc)
+                    new_barcodes += 1
+
+                updated += 1
+
+        else:
+            # New article
+            primary_barcode = None
+            other_barcodes = []
+
+            for bc in barcodes_list:
+                bc = str(bc).strip()
+                if not bc:
+                    continue
+                if bc in existing_primary_barcodes or bc in existing_extra_barcodes:
+                    continue
+                if primary_barcode is None:
+                    primary_barcode = bc
+                    existing_primary_barcodes.add(bc)
+                else:
+                    other_barcodes.append(bc)
+                    existing_extra_barcodes.add(bc)
+
+            new_art = Article(
+                code_article=code,
+                designation=desig,
+                barcode=primary_barcode,
+                unite='piece',
+                is_active=True
+            )
+            new_articles_batch.append(new_art)
+            existing_codes[code] = new_art
+
+            for bc in other_barcodes:
+                pending_extras_for_new.append((code, bc))
+                new_barcodes += 1
+
+            created += 1
+
+    # Save new articles first
+    if new_articles_batch:
+        for a in new_articles_batch:
+            db.session.add(a)
+        db.session.flush()
+
+    # Save extra barcodes for existing articles
+    if new_extras_for_existing:
+        for eb in new_extras_for_existing:
+            db.session.add(eb)
+
+    # Save extra barcodes for new articles (now they have IDs)
+    if pending_extras_for_new:
+        saved_new = {a.code_article: a for a in new_articles_batch}
+        for code, bc in pending_extras_for_new:
+            art = saved_new.get(code)
+            if art and art.id:
+                eb = ArticleBarcode(article_id=art.id, barcode=bc)
+                db.session.add(eb)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'created': created,
+        'updated': updated,
+        'new_barcodes': new_barcodes,
+        'errors': len(errors)
+    })
