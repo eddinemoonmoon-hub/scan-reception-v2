@@ -805,6 +805,156 @@ def inventaire_delete(id):
         flash('Inventaire supprime', 'success')
     return redirect(url_for('admin.inventaires'))
 
+@admin.route('/inventaires/<int:id>/ligne/<int:ligne_id>/edit', methods=['POST'])
+@admin_required
+def inventaire_ligne_edit(id, ligne_id):
+    """Edit qty of an existing inventaire ligne"""
+    from models.inventaire import Inventaire, InventaireLigne
+
+    inv = db.session.get(Inventaire, id)
+    if not inv:
+        flash('Inventaire introuvable', 'error')
+        return redirect(url_for('admin.inventaires'))
+
+    ligne = db.session.get(InventaireLigne, ligne_id)
+    if not ligne or ligne.inventaire_id != id:
+        flash('Ligne introuvable', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    new_qte_raw = request.form.get('qte_physique', '').strip()
+    try:
+        new_qte = float(new_qte_raw)
+    except ValueError:
+        flash('Quantite invalide', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    if new_qte < 0:
+        flash('Quantite ne peut pas etre negative', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    old_qte = ligne.qte_physique
+    ligne.qte_physique = new_qte
+    ligne.ecart = new_qte - ligne.qte_systeme
+    db.session.commit()
+    flash(f'Quantite mise a jour: {old_qte} -> {new_qte}', 'success')
+    return redirect(url_for('admin.inventaire_detail', id=id))
+
+
+@admin.route('/inventaires/<int:id>/ligne/<int:ligne_id>/delete', methods=['POST'])
+@admin_required
+def inventaire_ligne_delete(id, ligne_id):
+    """Delete a ligne from inventaire"""
+    from models.inventaire import Inventaire, InventaireLigne
+
+    inv = db.session.get(Inventaire, id)
+    if not inv:
+        flash('Inventaire introuvable', 'error')
+        return redirect(url_for('admin.inventaires'))
+
+    ligne = db.session.get(InventaireLigne, ligne_id)
+    if not ligne or ligne.inventaire_id != id:
+        flash('Ligne introuvable', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    db.session.delete(ligne)
+    db.session.commit()
+    flash('Ligne supprimee', 'success')
+    return redirect(url_for('admin.inventaire_detail', id=id))
+
+
+@admin.route('/inventaires/<int:id>/ligne/add', methods=['POST'])
+@admin_required
+def inventaire_ligne_add(id):
+    """Add a new article to an inventaire"""
+    from models.inventaire import Inventaire, InventaireLigne
+    from models.article_barcode import ArticleBarcode
+    from models.stock_level import StockLevel
+
+    inv = db.session.get(Inventaire, id)
+    if not inv:
+        flash('Inventaire introuvable', 'error')
+        return redirect(url_for('admin.inventaires'))
+
+    search = request.form.get('article_search', '').strip()
+    qte_raw = request.form.get('qte_physique', '').strip()
+
+    if not search or not qte_raw:
+        flash('Article et quantite obligatoires', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    try:
+        qte = float(qte_raw)
+    except ValueError:
+        flash('Quantite invalide', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    if qte < 0:
+        flash('Quantite ne peut pas etre negative', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    # Search article
+    article = Article.query.filter_by(code_article=search).first()
+    if not article:
+        article = Article.query.filter_by(barcode=search).first()
+    if not article:
+        extra = ArticleBarcode.query.filter_by(barcode=search).first()
+        if extra:
+            article = db.session.get(Article, extra.article_id)
+
+    if not article:
+        flash(f'Article introuvable: {search}', 'error')
+        return redirect(url_for('admin.inventaire_detail', id=id))
+
+    # Get qte_systeme
+    sl = StockLevel.query.filter_by(
+        article_code=article.code_article,
+        warehouse_code='20'
+    ).first()
+    qte_systeme = sl.quantity if sl else 0
+    ecart = qte - qte_systeme
+
+    # Check if already exists in inventaire
+    existing = InventaireLigne.query.filter_by(
+        inventaire_id=id,
+        article_id=article.id
+    ).first()
+
+    if existing:
+        existing.qte_systeme = qte_systeme
+        existing.qte_physique = qte
+        existing.ecart = ecart
+        flash(f'Article deja present - Qte remplacee: {qte}', 'success')
+    else:
+        ligne = InventaireLigne(
+            inventaire_id=id,
+            article_id=article.id,
+            qte_systeme=qte_systeme,
+            qte_physique=qte,
+            ecart=ecart
+        )
+        db.session.add(ligne)
+        flash(f'Article ajoute: {article.designation} - {qte}', 'success')
+
+    db.session.commit()
+    return redirect(url_for('admin.inventaire_detail', id=id))
+
+
+@admin.route('/inventaires/<int:id>/reopen', methods=['POST'])
+@admin_required
+def inventaire_reopen(id):
+    """Reopen an inventaire - set as active session and redirect to scanner"""
+    from models.inventaire import Inventaire
+
+    inv = db.session.get(Inventaire, id)
+    if not inv:
+        flash('Inventaire introuvable', 'error')
+        return redirect(url_for('admin.inventaires'))
+
+    session['inventaire_id'] = inv.id
+    session['inventaire_ref'] = inv.reference
+
+    flash(f'Inventaire {inv.reference} repris', 'success')
+    return redirect(url_for('verify.scan'))
 
 @admin.route('/inventaires/<int:id>/export')
 @admin_required

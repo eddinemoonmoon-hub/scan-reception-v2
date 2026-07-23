@@ -117,19 +117,24 @@ function showNotFound(barcode) {
 }
 
 function fetchStockAndShowPanel(article) {
-  fetch("/api/stock-level?article_code=" + encodeURIComponent(article.code_article))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      currentQteSysteme = data.quantity || 0;
-      showQtyPanel(article, currentQteSysteme, data.price);
-    })
-    .catch(function() {
-      currentQteSysteme = 0;
-      showQtyPanel(article, 0, null);
-    });
+  // Fetch stock/price AND check if already scanned in parallel
+  Promise.all([
+    fetch("/api/stock-level?article_code=" + encodeURIComponent(article.code_article)).then(function(r) { return r.json(); }),
+    fetch("/api/check-inventaire-ligne?article_id=" + article.id).then(function(r) { return r.json(); })
+  ])
+  .then(function(results) {
+    var stockData = results[0];
+    var checkData = results[1];
+    currentQteSysteme = stockData.quantity || 0;
+    showQtyPanel(article, currentQteSysteme, stockData.price, checkData);
+  })
+  .catch(function() {
+    currentQteSysteme = 0;
+    showQtyPanel(article, 0, null, {exists: false});
+  });
 }
 
-function showQtyPanel(article, qteSysteme, prix) {
+function showQtyPanel(article, qteSysteme, prix, checkData) {
   document.getElementById("qty-code").textContent = article.code_article;
   document.getElementById("qty-name").textContent = article.designation;
   document.getElementById("qty-systeme").textContent = qteSysteme + " " + (article.unite || "");
@@ -147,16 +152,34 @@ function showQtyPanel(article, qteSysteme, prix) {
     }
   }
 
-  document.getElementById("qty-input").value = "";
+  var input = document.getElementById("qty-input");
+  var warnBox = document.getElementById("qty-existing-warn");
+
+  // Rescan detection
+  if (checkData && checkData.exists) {
+    input.value = checkData.qte_physique % 1 === 0 ? checkData.qte_physique : checkData.qte_physique.toFixed(2);
+    if (warnBox) {
+      document.getElementById("qty-existing-value").textContent = checkData.qte_physique + " " + (article.unite || "");
+      warnBox.classList.remove("hidden");
+    }
+    updateEcartPreview();
+  } else {
+    input.value = "";
+    if (warnBox) warnBox.classList.add("hidden");
+  }
+
   document.getElementById("qty-ecart-preview").classList.add("hidden");
+  if (checkData && checkData.exists) {
+    updateEcartPreview();
+  }
 
   var panel = document.getElementById("qty-panel");
   panel.classList.add("visible");
   panel.setAttribute("aria-hidden", "false");
 
   setTimeout(function() {
-    var input = document.getElementById("qty-input");
     input.focus();
+    if (checkData && checkData.exists) input.select();
   }, 300);
 }
 
@@ -235,7 +258,12 @@ function confirmAdd() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      var msg = article.designation + " - Écart: " + (data.ecart > 0 ? "+" : "") + data.ecart;
+      var msg;
+      if (data.was_existing) {
+        msg = "Qte remplacée: " + data.old_qte_physique + " → " + qte + " - Écart: " + (data.ecart > 0 ? "+" : "") + data.ecart;
+      } else {
+        msg = article.designation + " - Écart: " + (data.ecart > 0 ? "+" : "") + data.ecart;
+      }
       var type = data.ecart === 0 ? "success" : "warning";
       showToast(msg, type);
 

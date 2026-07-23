@@ -435,7 +435,7 @@ def current_inventaire():
 
 @api.route('/add-inventaire-ligne', methods=['POST'])
 def add_inventaire_ligne():
-    """Add a comparison line to current inventaire (allow multiple counts)"""
+    """Add or REPLACE a comparison line in current inventaire"""
     from models.inventaire import Inventaire, InventaireLigne
     from models.stock_level import StockLevel
 
@@ -466,14 +466,29 @@ def add_inventaire_ligne():
     qte_systeme = sl.quantity if sl else 0
     ecart = qte_physique - qte_systeme
 
-    ligne = InventaireLigne(
+    # Check for existing line (rescan detection)
+    existing = InventaireLigne.query.filter_by(
         inventaire_id=inv_id,
-        article_id=article_id,
-        qte_systeme=qte_systeme,
-        qte_physique=qte_physique,
-        ecart=ecart
-    )
-    db.session.add(ligne)
+        article_id=article_id
+    ).first()
+
+    was_existing = existing is not None
+    old_qte_physique = existing.qte_physique if existing else 0
+
+    if existing:
+        existing.qte_systeme = qte_systeme
+        existing.qte_physique = qte_physique
+        existing.ecart = ecart
+    else:
+        ligne = InventaireLigne(
+            inventaire_id=inv_id,
+            article_id=article_id,
+            qte_systeme=qte_systeme,
+            qte_physique=qte_physique,
+            ecart=ecart
+        )
+        db.session.add(ligne)
+
     db.session.commit()
 
     return jsonify({
@@ -481,8 +496,37 @@ def add_inventaire_ligne():
         'total_lignes': inv.total_lignes,
         'total_ecarts': inv.total_ecarts,
         'qte_systeme': qte_systeme,
-        'ecart': ecart
+        'ecart': ecart,
+        'was_existing': was_existing,
+        'old_qte_physique': old_qte_physique
     })
+
+
+@api.route('/check-inventaire-ligne', methods=['GET'])
+def check_inventaire_ligne():
+    """Check if article already scanned in current inventaire"""
+    from models.inventaire import InventaireLigne
+
+    article_id = request.args.get('article_id', type=int)
+    inv_id = session.get('inventaire_id')
+
+    if not inv_id or not article_id:
+        return jsonify({'exists': False})
+
+    ligne = InventaireLigne.query.filter_by(
+        inventaire_id=inv_id,
+        article_id=article_id
+    ).first()
+
+    if ligne:
+        return jsonify({
+            'exists': True,
+            'qte_physique': ligne.qte_physique,
+            'qte_systeme': ligne.qte_systeme,
+            'ecart': ligne.ecart
+        })
+
+    return jsonify({'exists': False})
 
 
 @api.route('/finish-inventaire', methods=['POST'])
