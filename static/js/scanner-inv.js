@@ -45,6 +45,7 @@ function setupScanner() {
     }
   }, 1000);
 
+  // ── Hidden input handlers (main path when laser goes here)
   manualInput.addEventListener("input", function() {
     var val = manualInput.value;
     if (val.indexOf("\n") !== -1 || val.indexOf("\r") !== -1) {
@@ -69,6 +70,36 @@ function setupScanner() {
       clearTimeout(scanTimer);
       var barcode = manualInput.value.trim();
       manualInput.value = "";
+      if (barcode.length >= 4) processBarcode(barcode);
+    }
+  });
+
+  // ── Manual search input handlers (fallback when laser goes here)
+  manualSearchInput.addEventListener("input", function() {
+    var val = manualSearchInput.value;
+    if (val.indexOf("\n") !== -1 || val.indexOf("\r") !== -1) {
+      var barcode = val.replace(/[\r\n]/g, "").trim();
+      manualSearchInput.value = "";
+      if (barcode.length >= 4) processBarcode(barcode);
+      return;
+    }
+    clearTimeout(scanTimer);
+    scanTimer = setTimeout(function() {
+      var barcode = manualSearchInput.value.trim();
+      // Auto-process only if long barcode (from laser scan)
+      if (barcode.length >= 8) {
+        manualSearchInput.value = "";
+        processBarcode(barcode);
+      }
+    }, 150);
+  });
+
+  manualSearchInput.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" || e.keyCode === 13) {
+      e.preventDefault();
+      clearTimeout(scanTimer);
+      var barcode = manualSearchInput.value.trim();
+      manualSearchInput.value = "";
       if (barcode.length >= 4) processBarcode(barcode);
     }
   });
