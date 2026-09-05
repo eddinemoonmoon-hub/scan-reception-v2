@@ -15,12 +15,14 @@ def create_app():
     from routes.admin import admin
     from routes.api import api
     from routes.verify import verify
+    from routes.economat import economat
 
     app.register_blueprint(main)
     app.register_blueprint(scan)
     app.register_blueprint(admin)
     app.register_blueprint(api)
     app.register_blueprint(verify)
+    app.register_blueprint(economat)
 
     @app.route('/manifest.json')
     def manifest():
@@ -57,6 +59,7 @@ def create_app():
         from models.user import User
         from models.stock_level import StockLevel
         from models.inventaire import Inventaire, InventaireLigne
+        from models.economat import EconomatStock, EconomatDocument, EconomatLigne
         db.create_all()
         seed_admin()
 

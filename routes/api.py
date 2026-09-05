@@ -703,3 +703,233 @@ def articles_sync():
         'new_barcodes': new_barcodes,
         'errors': len(errors)
     })
+
+# ─── ECONOMAT API ──────────────────────────────────────────
+
+@api.route('/economat/start', methods=['POST'])
+def economat_start():
+    from models.economat import EconomatDocument
+
+    data = request.get_json()
+    agent_name = (data.get('agent_name', '') or '').strip()
+    doc_type = data.get('doc_type', '')
+
+    if not agent_name or doc_type not in ['entree', 'sortie']:
+        return jsonify({'success': False, 'message': 'Parametres invalides'})
+
+    reference = EconomatDocument.generate_reference(doc_type)
+
+    doc = EconomatDocument(
+        reference=reference,
+        doc_type=doc_type,
+        agent_name=agent_name,
+        date_document=datetime.utcnow().date(),
+        statut='en_cours'
+    )
+    db.session.add(doc)
+    db.session.commit()
+
+    session['economat_id'] = doc.id
+    session['economat_ref'] = reference
+    session['economat_type'] = doc_type
+
+    return jsonify({
+        'success': True,
+        'id': doc.id,
+        'reference': reference,
+        'type': doc_type
+    })
+
+
+@api.route('/economat/current')
+def economat_current():
+    from models.economat import EconomatDocument
+
+    doc_id = session.get('economat_id')
+    if not doc_id:
+        return jsonify({'active': False})
+
+    doc = db.session.get(EconomatDocument, doc_id)
+    if not doc:
+        session.pop('economat_id', None)
+        session.pop('economat_ref', None)
+        session.pop('economat_type', None)
+        return jsonify({'active': False})
+
+    lignes = []
+    for l in doc.lignes:
+        lignes.append({
+            'id': l.id,
+            'code_article': l.article.code_article,
+            'designation': l.article.designation,
+            'qte': l.qte,
+            'scanned_at': l.scanned_at.strftime('%H:%M') if l.scanned_at else None
+        })
+
+    return jsonify({
+        'active': True,
+        'id': doc.id,
+        'reference': doc.reference,
+        'type': doc.doc_type,
+        'agent_name': doc.agent_name,
+        'total_lignes': len(lignes),
+        'lignes': lignes
+    })
+
+
+@api.route('/economat/stock')
+def economat_stock():
+    """Get stock economat for an article"""
+    from models.economat import EconomatStock
+
+    article_id = request.args.get('article_id', type=int)
+    if not article_id:
+        return jsonify({'found': False})
+
+    es = EconomatStock.query.filter_by(article_id=article_id).first()
+    return jsonify({
+        'found': True,
+        'qte': es.quantity if es else 0
+    })
+
+
+@api.route('/economat/check-ligne')
+def economat_check_ligne():
+    """Check if already scanned"""
+    from models.economat import EconomatLigne
+
+    article_id = request.args.get('article_id', type=int)
+    doc_id = session.get('economat_id')
+
+    if not doc_id or not article_id:
+        return jsonify({'exists': False})
+
+    ligne = EconomatLigne.query.filter_by(document_id=doc_id, article_id=article_id).first()
+    if ligne:
+        return jsonify({'exists': True, 'qte': ligne.qte})
+
+    return jsonify({'exists': False})
+
+
+@api.route('/economat/add-ligne', methods=['POST'])
+def economat_add_ligne():
+    from models.economat import EconomatDocument, EconomatLigne, EconomatStock
+
+    data = request.get_json()
+    article_id = data.get('article_id')
+    try:
+        qte = float(data.get('qte', 0))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Quantite invalide'})
+
+    doc_id = session.get('economat_id')
+    if not doc_id:
+        return jsonify({'success': False, 'message': 'Aucun document actif'})
+
+    doc = db.session.get(EconomatDocument, doc_id)
+    if not doc:
+        return jsonify({'success': False, 'message': 'Document introuvable'})
+
+    article = db.session.get(Article, article_id)
+    if not article:
+        return jsonify({'success': False, 'message': 'Article introuvable'})
+
+    # Get current stock
+    es = EconomatStock.query.filter_by(article_id=article_id).first()
+    stock_actuel = es.quantity if es else 0
+
+    # Rescan detection
+    existing = EconomatLigne.query.filter_by(document_id=doc_id, article_id=article_id).first()
+    was_existing = existing is not None
+    old_qte = existing.qte if existing else 0
+
+    # Calculate real stock change
+    if was_existing:
+        qte_diff = qte - old_qte
+    else:
+        qte_diff = qte
+
+    # Validate SORTIE
+    if doc.doc_type == 'sortie':
+        if stock_actuel < qte_diff:
+            return jsonify({
+                'success': False,
+                'message': f'Stock insuffisant ({stock_actuel} disponibles)'
+            })
+
+    # Update line
+    if existing:
+        existing.qte = qte
+    else:
+        ligne = EconomatLigne(document_id=doc_id, article_id=article_id, qte=qte)
+        db.session.add(ligne)
+
+    # Note: We DO NOT update EconomatStock table yet.
+    # Stock is only updated when the document is "terminee" (finish endpoint)
+    # This prevents messy rollbacks if agent deletes lines or abandons document.
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'total_lignes': doc.total_lignes,
+        'was_existing': was_existing,
+        'old_qte': old_qte
+    })
+
+
+@api.route('/economat/finish', methods=['POST'])
+def economat_finish():
+    """Finish doc and UPDATE STOCK"""
+    from models.economat import EconomatDocument, EconomatStock
+
+    doc_id = session.get('economat_id')
+    if not doc_id:
+        return jsonify({'success': False, 'message': 'Aucun document actif'})
+
+    doc = db.session.get(EconomatDocument, doc_id)
+    if not doc:
+        return jsonify({'success': False, 'message': 'Document introuvable'})
+
+    if doc.statut == 'terminee':
+        return jsonify({'success': False, 'message': 'Deja termine'})
+
+    # Apply stock changes
+    for ligne in doc.lignes:
+        es = EconomatStock.query.filter_by(article_id=ligne.article_id).first()
+        if not es:
+            es = EconomatStock(article_id=ligne.article_id, quantity=0)
+            db.session.add(es)
+
+        if doc.doc_type == 'entree':
+            es.quantity += ligne.qte
+        elif doc.doc_type == 'sortie':
+            es.quantity -= ligne.qte
+
+        es.updated_at = datetime.utcnow()
+
+    doc.statut = 'terminee'
+    db.session.commit()
+
+    session.pop('economat_id', None)
+    session.pop('economat_ref', None)
+    session.pop('economat_type', None)
+
+    return jsonify({
+        'success': True,
+        'reference': doc.reference
+    })
+
+
+@api.route('/economat/remove-ligne/<int:ligne_id>', methods=['DELETE'])
+def economat_remove_ligne(ligne_id):
+    from models.economat import EconomatDocument, EconomatLigne
+    doc_id = session.get('economat_id')
+    ligne = db.session.get(EconomatLigne, ligne_id)
+
+    if not ligne or ligne.document_id != doc_id:
+        return jsonify({'success': False, 'message': 'Ligne introuvable'})
+
+    db.session.delete(ligne)
+    db.session.commit()
+    return jsonify({'success': True})
