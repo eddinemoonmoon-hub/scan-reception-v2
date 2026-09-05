@@ -1088,3 +1088,351 @@ def reception_export(id):
     response.headers['Content-Disposition'] = 'attachment; filename=' + reception.reference + '.csv'
     return response
 
+# ─── ECONOMAT ADMIN ──────────────────────────────────────────
+
+@admin.route('/economat')
+@admin_required
+def economat_list():
+    from models.economat import EconomatDocument
+    date_from = request.args.get('date_from', '')
+    date_to   = request.args.get('date_to', '')
+    doc_type  = request.args.get('type', '')
+    query = EconomatDocument.query
+
+    if doc_type in ['entree', 'sortie']:
+        query = query.filter_by(doc_type=doc_type)
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(EconomatDocument.date_document >= df)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(EconomatDocument.date_document <= dt)
+        except Exception:
+            pass
+
+    documents = query.order_by(EconomatDocument.created_at.desc()).all()
+    return render_template('admin/economat/list.html',
+                           documents=documents,
+                           date_from=date_from,
+                           date_to=date_to,
+                           doc_type=doc_type)
+
+
+@admin.route('/economat/<int:id>')
+@admin_required
+def economat_detail(id):
+    from models.economat import EconomatDocument
+    doc = db.session.get(EconomatDocument, id)
+    if not doc:
+        flash('Document introuvable', 'error')
+        return redirect(url_for('admin.economat_list'))
+    return render_template('admin/economat/detail.html', doc=doc)
+
+
+@admin.route('/economat/<int:id>/delete', methods=['POST'])
+@admin_required
+def economat_delete(id):
+    from models.economat import EconomatDocument, EconomatStock
+    doc = db.session.get(EconomatDocument, id)
+    if doc:
+        # Revert stock changes if doc was terminee
+        if doc.statut == 'terminee':
+            for ligne in doc.lignes:
+                es = EconomatStock.query.filter_by(article_id=ligne.article_id).first()
+                if es:
+                    if doc.doc_type == 'entree':
+                        es.quantity = max(0, es.quantity - ligne.qte)
+                    elif doc.doc_type == 'sortie':
+                        es.quantity += ligne.qte
+                    es.updated_at = datetime.utcnow()
+
+        db.session.delete(doc)
+        db.session.commit()
+        flash('Document supprime', 'success')
+    return redirect(url_for('admin.economat_list'))
+
+
+@admin.route('/economat/<int:id>/ligne/<int:ligne_id>/edit', methods=['POST'])
+@admin_required
+def economat_ligne_edit(id, ligne_id):
+    from models.economat import EconomatDocument, EconomatLigne, EconomatStock
+
+    doc = db.session.get(EconomatDocument, id)
+    if not doc:
+        flash('Document introuvable', 'error')
+        return redirect(url_for('admin.economat_list'))
+
+    ligne = db.session.get(EconomatLigne, ligne_id)
+    if not ligne or ligne.document_id != id:
+        flash('Ligne introuvable', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    new_qte_raw = request.form.get('qte', '').strip()
+    try:
+        new_qte = float(new_qte_raw)
+    except ValueError:
+        flash('Quantite invalide', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    if new_qte <= 0:
+        flash('Quantite doit etre superieure a 0', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    old_qte = ligne.qte
+    qte_diff = new_qte - old_qte
+
+    # If doc is terminee, adjust current stock
+    if doc.statut == 'terminee':
+        es = EconomatStock.query.filter_by(article_id=ligne.article_id).first()
+        if not es:
+            es = EconomatStock(article_id=ligne.article_id, quantity=0)
+            db.session.add(es)
+
+        if doc.doc_type == 'sortie' and es.quantity < qte_diff:
+            flash(f'Stock economat insuffisant ({es.quantity} disponibles)', 'error')
+            return redirect(url_for('admin.economat_detail', id=id))
+
+        if doc.doc_type == 'entree':
+            es.quantity += qte_diff
+        elif doc.doc_type == 'sortie':
+            es.quantity -= qte_diff
+        es.updated_at = datetime.utcnow()
+
+    ligne.qte = new_qte
+    db.session.commit()
+    flash(f'Quantite mise a jour: {old_qte} -> {new_qte}', 'success')
+    return redirect(url_for('admin.economat_detail', id=id))
+
+
+@admin.route('/economat/<int:id>/ligne/<int:ligne_id>/delete', methods=['POST'])
+@admin_required
+def economat_ligne_delete(id, ligne_id):
+    from models.economat import EconomatDocument, EconomatLigne, EconomatStock
+
+    doc = db.session.get(EconomatDocument, id)
+    if not doc:
+        flash('Document introuvable', 'error')
+        return redirect(url_for('admin.economat_list'))
+
+    ligne = db.session.get(EconomatLigne, ligne_id)
+    if not ligne or ligne.document_id != id:
+        flash('Ligne introuvable', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    # Revert stock if terminee
+    if doc.statut == 'terminee':
+        es = EconomatStock.query.filter_by(article_id=ligne.article_id).first()
+        if es:
+            if doc.doc_type == 'entree':
+                es.quantity = max(0, es.quantity - ligne.qte)
+            elif doc.doc_type == 'sortie':
+                es.quantity += ligne.qte
+            es.updated_at = datetime.utcnow()
+
+    db.session.delete(ligne)
+    db.session.commit()
+    flash('Ligne supprimee', 'success')
+    return redirect(url_for('admin.economat_detail', id=id))
+
+
+@admin.route('/economat/<int:id>/ligne/add', methods=['POST'])
+@admin_required
+def economat_ligne_add(id):
+    from models.economat import EconomatDocument, EconomatLigne, EconomatStock
+    from models.article_barcode import ArticleBarcode
+
+    doc = db.session.get(EconomatDocument, id)
+    if not doc:
+        flash('Document introuvable', 'error')
+        return redirect(url_for('admin.economat_list'))
+
+    search = request.form.get('article_search', '').strip()
+    qte_raw = request.form.get('qte', '').strip()
+
+    if not search or not qte_raw:
+        flash('Article et quantite obligatoires', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    try:
+        qte = float(qte_raw)
+    except ValueError:
+        flash('Quantite invalide', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    if qte <= 0:
+        flash('Quantite doit etre superieure a 0', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    article = Article.query.filter_by(code_article=search).first()
+    if not article:
+        article = Article.query.filter_by(barcode=search).first()
+    if not article:
+        extra = ArticleBarcode.query.filter_by(barcode=search).first()
+        if extra:
+            article = db.session.get(Article, extra.article_id)
+
+    if not article:
+        flash(f'Article introuvable: {search}', 'error')
+        return redirect(url_for('admin.economat_detail', id=id))
+
+    # If doc is terminee, update stock
+    if doc.statut == 'terminee':
+        es = EconomatStock.query.filter_by(article_id=article.id).first()
+        if not es:
+            es = EconomatStock(article_id=article.id, quantity=0)
+            db.session.add(es)
+
+        if doc.doc_type == 'sortie' and es.quantity < qte:
+            flash(f'Stock economat insuffisant ({es.quantity} disponibles)', 'error')
+            return redirect(url_for('admin.economat_detail', id=id))
+
+        if doc.doc_type == 'entree':
+            es.quantity += qte
+        elif doc.doc_type == 'sortie':
+            es.quantity -= qte
+        es.updated_at = datetime.utcnow()
+
+    existing = EconomatLigne.query.filter_by(document_id=id, article_id=article.id).first()
+    if existing:
+        existing.qte = qte
+        flash(f'Article deja present - Qte remplacee: {qte}', 'success')
+    else:
+        ligne = EconomatLigne(document_id=id, article_id=article.id, qte=qte)
+        db.session.add(ligne)
+        flash(f'Article ajoute: {article.designation} - {qte}', 'success')
+
+    db.session.commit()
+    return redirect(url_for('admin.economat_detail', id=id))
+
+
+@admin.route('/economat/<int:id>/reopen', methods=['POST'])
+@admin_required
+def economat_reopen(id):
+    from models.economat import EconomatDocument
+
+    doc = db.session.get(EconomatDocument, id)
+    if not doc:
+        flash('Document introuvable', 'error')
+        return redirect(url_for('admin.economat_list'))
+
+    session['economat_id'] = doc.id
+    session['economat_ref'] = doc.reference
+    session['economat_type'] = doc.doc_type
+
+    flash(f'Document {doc.reference} repris', 'success')
+    return redirect(url_for('economat.scan'))
+
+
+@admin.route('/economat/<int:id>/export')
+@admin_required
+def economat_export(id):
+    from models.economat import EconomatDocument
+
+    doc = db.session.get(EconomatDocument, id)
+    if not doc:
+        flash('Document introuvable', 'error')
+        return redirect(url_for('admin.economat_list'))
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', lineterminator='\n')
+    writer.writerow(['code_article', 'designation', 'qte', 'type'])
+
+    for ligne in doc.lignes:
+        if ligne.article:
+            writer.writerow([
+                ligne.article.code_article,
+                ligne.article.designation,
+                ligne.qte,
+                doc.doc_type.upper()
+            ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    response = make_response(csv_bytes)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename={doc.reference}.csv'
+    return response
+
+
+@admin.route('/economat/export')
+@admin_required
+def economat_export_all():
+    from models.economat import EconomatDocument
+
+    date_from = request.args.get('date_from', '')
+    date_to   = request.args.get('date_to', '')
+    doc_type  = request.args.get('type', '')
+    query = EconomatDocument.query
+
+    if doc_type in ['entree', 'sortie']:
+        query = query.filter_by(doc_type=doc_type)
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(EconomatDocument.date_document >= df)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(EconomatDocument.date_document <= dt)
+        except Exception:
+            pass
+
+    docs = query.order_by(EconomatDocument.date_document.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', lineterminator='\n')
+    writer.writerow(['reference', 'type', 'agent', 'date', 'code_article', 'designation', 'qte'])
+
+    for doc in docs:
+        for ligne in doc.lignes:
+            if ligne.article:
+                writer.writerow([
+                    doc.reference,
+                    doc.doc_type.upper(),
+                    doc.agent_name or '',
+                    doc.date_document.strftime('%d/%m/%Y') if doc.date_document else '',
+                    ligne.article.code_article,
+                    ligne.article.designation,
+                    ligne.qte
+                ])
+
+    today = date.today().strftime('%Y%m%d')
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    response = make_response(csv_bytes)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename=economat_export_{today}.csv'
+    return response
+
+
+@admin.route('/economat/stock')
+@admin_required
+def economat_stock_list():
+    from models.economat import EconomatStock
+
+    search = request.args.get('q', '')
+    query = EconomatStock.query.join(Article)
+
+    if search:
+        query = query.filter(
+            db.or_(
+                Article.designation.ilike(f'%{search}%'),
+                Article.code_article.ilike(f'%{search}%'),
+                Article.barcode.ilike(f'%{search}%')
+            )
+        )
+
+    page = request.args.get("page", 1, type=int)
+    pagination = query.order_by(Article.designation).paginate(page=page, per_page=100, error_out=False)
+    stocks = pagination.items
+
+    return render_template('admin/economat/stock.html',
+                           stocks=stocks,
+                           search=search,
+                           pagination=pagination)
