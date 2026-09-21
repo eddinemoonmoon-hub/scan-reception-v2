@@ -589,13 +589,14 @@ def articles_sync():
     for item in articles_data:
         code = str(item.get('code', '') or '').strip()
         desig = str(item.get('designation', '') or '').strip()
+        cat = str(item.get('categorie', '') or 'Non classé').strip() or 'Non classé'
         barcodes_list = item.get('barcodes', [])
 
         if not code or not desig:
             continue
 
         if code in existing_codes:
-            # Article exists - update designation if changed
+            # Article exists - update designation and category if changed
             art = existing_codes[code]
 
             # Handle in-memory new articles (not yet in DB)
@@ -613,6 +614,8 @@ def articles_sync():
                 # Real existing article in DB
                 if art.designation != desig:
                     art.designation = desig
+                if art.categorie != cat:
+                    art.categorie = cat
 
                 # Get current barcodes for this article
                 art_current_barcodes = set()
@@ -663,6 +666,7 @@ def articles_sync():
                 designation=desig,
                 barcode=primary_barcode,
                 unite='piece',
+                categorie=cat,
                 is_active=True
             )
             new_articles_batch.append(new_art)

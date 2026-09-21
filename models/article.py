@@ -9,6 +9,7 @@ class Article(db.Model):
     designation  = db.Column(db.String(200), nullable=False)
     barcode      = db.Column(db.String(100), unique=True, nullable=True)
     unite        = db.Column(db.String(20), default='piece')
+    categorie    = db.Column(db.String(100), nullable=True, default='Non classé')
     is_active    = db.Column(db.Boolean, default=True)
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -17,7 +18,6 @@ class Article(db.Model):
                                cascade='all, delete-orphan')
 
     def get_all_barcodes(self):
-        """Returns all barcodes for this article including primary"""
         all_barcodes = []
         if self.barcode:
             all_barcodes.append(self.barcode)

@@ -1416,23 +1416,44 @@ def economat_export_all():
 def economat_stock_list():
     from models.economat import EconomatStock
 
-    search = request.args.get('q', '')
-    query = EconomatStock.query.join(Article)
+    selected_cat = request.args.get('cat', '').strip()
+    search = request.args.get('q', '').strip()
 
-    if search:
-        query = query.filter(
-            db.or_(
-                Article.designation.ilike(f'%{search}%'),
-                Article.code_article.ilike(f'%{search}%'),
-                Article.barcode.ilike(f'%{search}%')
+    if selected_cat:
+        # Step 2: Show articles in selected category
+        query = EconomatStock.query.join(Article).filter(Article.categorie == selected_cat)
+        if search:
+            query = query.filter(
+                db.or_(
+                    Article.designation.ilike(f'%{search}%'),
+                    Article.code_article.ilike(f'%{search}%'),
+                    Article.barcode.ilike(f'%{search}%')
+                )
             )
-        )
 
-    page = request.args.get("page", 1, type=int)
-    pagination = query.order_by(Article.designation).paginate(page=page, per_page=100, error_out=False)
-    stocks = pagination.items
+        page = request.args.get("page", 1, type=int)
+        pagination = query.order_by(Article.designation).paginate(page=page, per_page=100, error_out=False)
+        stocks = pagination.items
 
-    return render_template('admin/economat/stock.html',
-                           stocks=stocks,
-                           search=search,
-                           pagination=pagination)
+        return render_template('admin/economat/stock.html',
+                               selected_cat=selected_cat,
+                               stocks=stocks,
+                               search=search,
+                               pagination=pagination)
+    else:
+        # Step 1: Category list view
+        categories_query = db.session.query(
+            Article.categorie,
+            db.func.count(EconomatStock.id).label('article_count'),
+            db.func.sum(EconomatStock.quantity).label('total_qty')
+        ).join(EconomatStock, EconomatStock.article_id == Article.id)
+
+        if search:
+            categories_query = categories_query.filter(Article.categorie.ilike(f'%{search}%'))
+
+        categories_summary = categories_query.group_by(Article.categorie).order_by(Article.categorie).all()
+
+        return render_template('admin/economat/stock.html',
+                               selected_cat=None,
+                               categories=categories_summary,
+                               search=search)
