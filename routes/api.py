@@ -556,7 +556,7 @@ def finish_inventaire():
 
 @api.route('/articles-sync', methods=['POST'])
 def articles_sync():
-    """Receive bulk articles from local bridge script (TCPOS sync)"""
+    """Receive bulk articles from local bridge script (TCPOS sync) - Batched Commit"""
     import os
     from models.article_barcode import ArticleBarcode
 
@@ -596,7 +596,6 @@ def articles_sync():
             continue
 
         if code in existing_codes:
-            # Article exists - update designation and category if changed
             art = existing_codes[code]
 
             # Handle in-memory new articles (not yet in DB)
@@ -611,11 +610,14 @@ def articles_sync():
                     existing_extra_barcodes.add(bc)
                     new_barcodes += 1
             else:
-                # Real existing article in DB
+                # Real existing article in DB - update only if changed
+                changed = False
                 if art.designation != desig:
                     art.designation = desig
+                    changed = True
                 if art.categorie != cat:
                     art.categorie = cat
+                    changed = True
 
                 # Get current barcodes for this article
                 art_current_barcodes = set()
@@ -632,7 +634,6 @@ def articles_sync():
                     if bc in art_current_barcodes:
                         continue
                     if bc in existing_primary_barcodes or bc in existing_extra_barcodes:
-                        # Barcode used by another article - skip
                         continue
 
                     new_extras_for_existing.append(
@@ -641,7 +642,8 @@ def articles_sync():
                     existing_extra_barcodes.add(bc)
                     new_barcodes += 1
 
-                updated += 1
+                if changed:
+                    updated += 1
 
         else:
             # New article
@@ -678,7 +680,10 @@ def articles_sync():
 
             created += 1
 
-    # Save new articles first
+    # Batch commit existing updates
+    db.session.commit()
+
+    # Save new articles
     if new_articles_batch:
         for a in new_articles_batch:
             db.session.add(a)
@@ -689,7 +694,7 @@ def articles_sync():
         for eb in new_extras_for_existing:
             db.session.add(eb)
 
-    # Save extra barcodes for new articles (now they have IDs)
+    # Save extra barcodes for new articles
     if pending_extras_for_new:
         saved_new = {a.code_article: a for a in new_articles_batch}
         for code, bc in pending_extras_for_new:
