@@ -4,16 +4,33 @@
 
 {% block body %}
 <style>
-  /* Premium Pro UI Specific to Stock Page */
-  .pro-header {
-    margin-bottom: 24px;
+  /* Hero Title Styling */
+  .pro-hero-title-wrap {
+    margin-bottom: 20px;
   }
-  
+  .pro-hero-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+  }
+  @media(min-width: 640px) {
+    .pro-hero-title { font-size: 34px; }
+  }
+  .pro-hero-sub {
+    font-size: 14px;
+    color: var(--text3);
+    font-weight: 500;
+    margin-top: 6px;
+  }
+
+  /* Grid & Card Styles */
   .pro-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 16px;
-    margin-top: 16px;
+    margin-top: 20px;
   }
   @media(min-width: 640px) {
     .pro-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
@@ -23,7 +40,7 @@
     background: #FFFFFF;
     border: 1px solid var(--border-strong);
     border-radius: 16px;
-    padding: 20px;
+    padding: 22px;
     text-decoration: none;
     color: inherit;
     display: flex;
@@ -159,8 +176,7 @@
       </svg>
     </a>
     <div class="header-center">
-      <div class="app-title">{% if selected_cat %}Catégorie : {{ selected_cat }}{% else %}Stock Économat{% endif %}</div>
-      <div class="app-subtitle">{% if selected_cat %}Détail des articles{% else %}Vue par catégories{% endif %}</div>
+      <div class="app-title">Stock Économat</div>
     </div>
     <div class="w-10"></div>
   </header>
@@ -170,14 +186,21 @@
     {% if not selected_cat %}
     <!-- ================= VIEW 1: CATEGORY GRID ================= -->
 
-    <div class="pro-header">
-      <form method="GET" action="/admin/economat/stock" class="search-form" style="margin-bottom: 0;">
-        <div class="search-wrap" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-radius: 14px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <input type="text" name="q" value="{{ search }}" class="search-input" placeholder="Rechercher une catégorie...">
-          {% if search %}<a href="/admin/economat/stock" class="search-clear">X</a>{% endif %}
-        </div>
-      </form>
+    <div class="pro-hero-title-wrap">
+      <h1 class="pro-hero-title">Stock Économat</h1>
+      <p class="pro-hero-sub">Vue d'ensemble et niveaux par catégorie d'articles</p>
+    </div>
+
+    <form method="GET" action="/admin/economat/stock" class="search-form" style="margin-bottom: 0;">
+      <div class="search-wrap" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-radius: 14px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" name="q" value="{{ search }}" class="search-input" placeholder="Rechercher une catégorie...">
+        {% if search %}<a href="/admin/economat/stock" class="search-clear">X</a>{% endif %}
+      </div>
+    </form>
+
+    <div class="list-header" style="margin-top: 20px;">
+      <span class="list-count" style="text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; font-weight: 700;">{{ categories|length }} catégorie(s) enregistrée(s)</span>
     </div>
 
     {% if categories %}
@@ -212,7 +235,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 3H8L6 7h12l-2-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none"><path d="M20 7H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 3H8L6 7h12l-2-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       <p style="margin-top:16px;">Aucun stock enregistré en économat</p>
     </div>
     {% endif %}
@@ -225,6 +248,11 @@
       Toutes les catégories
     </a>
 
+    <div class="pro-hero-title-wrap">
+      <h1 class="pro-hero-title">{{ selected_cat }}</h1>
+      <p class="pro-hero-sub">Détail et disponibilité des articles de la catégorie</p>
+    </div>
+
     <form method="GET" action="/admin/economat/stock" class="search-form">
       <input type="hidden" name="cat" value="{{ selected_cat }}">
       <div class="search-wrap" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-radius: 14px;">
@@ -234,8 +262,8 @@
       </div>
     </form>
 
-    <div class="list-header" style="margin-top: 24px;">
-      <span class="list-count" style="text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em;">{{ pagination.total }} article(s) trouvé(s)</span>
+    <div class="list-header" style="margin-top: 20px;">
+      <span class="list-count" style="text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; font-weight: 700;">{{ pagination.total }} article(s) trouvé(s)</span>
     </div>
 
     {% if stocks %}
