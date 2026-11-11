@@ -1137,23 +1137,12 @@ def economat_detail(id):
 @admin.route('/economat/<int:id>/delete', methods=['POST'])
 @admin_required
 def economat_delete(id):
-    from models.economat import EconomatDocument, EconomatStock
+    from models.economat import EconomatDocument
     doc = db.session.get(EconomatDocument, id)
     if doc:
-        # Revert stock changes if doc was terminee
-        if doc.statut == 'terminee':
-            for ligne in doc.lignes:
-                es = EconomatStock.query.filter_by(article_id=ligne.article_id).first()
-                if es:
-                    if doc.doc_type == 'entree':
-                        es.quantity = max(0, es.quantity - ligne.qte)
-                    elif doc.doc_type == 'sortie':
-                        es.quantity += ligne.qte
-                    es.updated_at = datetime.utcnow()
-
         db.session.delete(doc)
         db.session.commit()
-        flash('Document supprime', 'success')
+        flash('Document supprime (stock inchange)', 'success')
     return redirect(url_for('admin.economat_list'))
 
 
