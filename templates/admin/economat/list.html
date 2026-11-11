@@ -63,6 +63,22 @@
       </div>
     </form>
 
+    <!-- Bulk delete by filtered period (history only, stock untouched) -->
+    <form method="POST" action="/admin/economat/delete-period"
+          onsubmit="return confirm('Supprimer TOUS les documents de cette periode de l\'historique ?\n\nDu: {{ date_from or '...' }}\nAu: {{ date_to or '...' }}\nType: {{ doc_type or 'Tous' }}\n\nLe stock economat NE sera PAS modifie.');"
+          style="margin:10px 0 14px;">
+      <input type="hidden" name="date_from" value="{{ date_from }}">
+      <input type="hidden" name="date_to" value="{{ date_to }}">
+      <input type="hidden" name="type" value="{{ doc_type }}">
+      <button type="submit" class="btn-danger btn-full" {% if not date_from and not date_to %}disabled style="opacity:0.5;"{% endif %}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <polyline points="3 6 5 6 21 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Supprimer la periode filtree (historique)
+      </button>
+    </form>
+
     <div class="list-header">
       <span class="list-count">{{ documents|length }} document(s)</span>
     </div>
@@ -103,7 +119,7 @@
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </a>
-          <form method="POST" action="/admin/economat/{{ doc.id }}/delete" onsubmit="return confirm('Supprimer {{ doc.reference }} ?\nLe stock economat sera retabli si le document etait termine.');" style="display:inline;">
+          <form method="POST" action="/admin/economat/{{ doc.id }}/delete" onsubmit="return confirm('Supprimer {{ doc.reference }} de l\'historique ?');" style="display:inline;">
             <button type="submit" class="btn-icon-sm" title="Supprimer">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>

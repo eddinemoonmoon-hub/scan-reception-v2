@@ -1145,6 +1145,54 @@ def economat_delete(id):
         flash('Document supprime (stock inchange)', 'success')
     return redirect(url_for('admin.economat_list'))
 
+@admin.route('/economat/delete-period', methods=['POST'])
+@admin_required
+def economat_delete_period():
+    """Delete economat documents in a date period (history only, stock untouched)."""
+    from models.economat import EconomatDocument
+
+    date_from = (request.form.get('date_from') or '').strip()
+    date_to = (request.form.get('date_to') or '').strip()
+    doc_type = (request.form.get('type') or '').strip()
+
+    if not date_from and not date_to:
+        flash('Indiquez au moins une date (Du ou Au) pour supprimer une periode', 'error')
+        return redirect(url_for('admin.economat_list'))
+
+    query = EconomatDocument.query
+
+    if doc_type in ['entree', 'sortie']:
+        query = query.filter_by(doc_type=doc_type)
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(EconomatDocument.date_document >= df)
+        except Exception:
+            flash('Date Du invalide', 'error')
+            return redirect(url_for('admin.economat_list', date_from=date_from, date_to=date_to, type=doc_type))
+
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(EconomatDocument.date_document <= dt)
+        except Exception:
+            flash('Date Au invalide', 'error')
+            return redirect(url_for('admin.economat_list', date_from=date_from, date_to=date_to, type=doc_type))
+
+    docs = query.all()
+    count = len(docs)
+
+    if count == 0:
+        flash('Aucun document a supprimer pour cette periode', 'error')
+        return redirect(url_for('admin.economat_list', date_from=date_from, date_to=date_to, type=doc_type))
+
+    for doc in docs:
+        db.session.delete(doc)
+
+    db.session.commit()
+    flash(f'{count} document(s) supprime(s) de l\'historique (stock inchange)', 'success')
+    return redirect(url_for('admin.economat_list'))
 
 @admin.route('/economat/<int:id>/ligne/<int:ligne_id>/edit', methods=['POST'])
 @admin_required
