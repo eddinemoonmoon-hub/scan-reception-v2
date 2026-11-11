@@ -1313,12 +1313,25 @@ def economat_ligne_add(id):
 @admin.route('/economat/<int:id>/reopen', methods=['POST'])
 @admin_required
 def economat_reopen(id):
-    from models.economat import EconomatDocument
+    from models.economat import EconomatDocument, EconomatStock
 
     doc = db.session.get(EconomatDocument, id)
     if not doc:
         flash('Document introuvable', 'error')
         return redirect(url_for('admin.economat_list'))
+
+    # Revert stock and reset status to en_cours so it can be re-validated
+    if doc.statut == 'terminee':
+        for ligne in doc.lignes:
+            es = EconomatStock.query.filter_by(article_id=ligne.article_id).first()
+            if es:
+                if doc.doc_type == 'entree':
+                    es.quantity = max(0, es.quantity - ligne.qte)
+                elif doc.doc_type == 'sortie':
+                    es.quantity += ligne.qte
+                es.updated_at = datetime.utcnow()
+        doc.statut = 'en_cours'
+        db.session.commit()
 
     session['economat_id'] = doc.id
     session['economat_ref'] = doc.reference
